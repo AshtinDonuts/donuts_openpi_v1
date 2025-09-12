@@ -220,7 +220,7 @@ class LeRobotAlohaDataConfig(DataConfigFactory):
     # If true, this will convert the joint and gripper values from the standard Aloha space to
     # the space used by the pi internal runtime which was used to train the base model. People who
     # use standard Aloha data should set this to true.
-    adapt_to_pi: bool = True
+    adapt_to_pi: bool = True  ##    but we don't use standard ALOHA setup?
 
     # Repack transforms.
     repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
@@ -261,6 +261,12 @@ class LeRobotAlohaDataConfig(DataConfigFactory):
             model_transforms=model_transforms,
             action_sequence_keys=self.action_sequence_keys,
         )
+
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotMultiAlohaDataConfig(LeRobotAlohaDataConfig):
+    repo_id : str = None
+    repo_ids : list[str] = tyro.MISSING
 
 
 @dataclasses.dataclass(frozen=True)
@@ -433,7 +439,7 @@ class TrainConfig:
     # Random seed that will be used by random generators during training.
     seed: int = 42
     # Global batch size.
-    batch_size: int = 32
+    batch_size: int = 8
     # Number of workers to use for the data loader. Increasing this number will speed up data loading but
     # will increase memory and CPU usage.
     num_workers: int = 2
@@ -677,6 +683,74 @@ _CONFIGS = [
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
         num_train_steps=20_000,
+    ),
+    ##
+    ## KING : SEP 10 MULTITASK TRAINING
+    ##
+    TrainConfig(
+        name="pi0_aloha_multitask",
+        model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
+        data=LeRobotMultiAlohaDataConfig(
+            repo_ids ='AshtinDonuts/multitaskdataset',
+            base_config=DataConfig(prompt_from_task=True),
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.cam_high",
+                                "cam_low": "observation.images.cam_low",
+                                "cam_left_wrist": "observation.images.cam_left_wrist",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                        }
+                    )
+                ]
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=3000,  #   steps for prelim testing
+        freeze_filter=pi0.Pi0Config(
+            paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
+        ).get_freeze_filter(),
+        ema_decay=None,    # Turn off EMA for LoRA finetuning.
+
+    ), 
+    ##
+    ## KING : SEP 4 TRAIN CONFIG FOR ALOHA STRAW INSERTION
+    ##
+    TrainConfig(
+        name="pi0_aloha_straw",
+        model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
+        data=LeRobotAlohaDataConfig(
+            repo_id="/home/khw/.cache/huggingface/lerobot/AshtinDonuts/aloha_straw",
+            ## do not use ALOHA robot stats it will DESTROY the policy.
+            default_prompt="insert the straw into the yellow cup",
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.cam_high",
+                                # "cam_low": "observation.images.cam_low",
+                                "cam_left_wrist": "observation.images.cam_left_wrist",
+                                "cam_right_wrist": "observation.images.cam_right_wrist",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                        }
+                    )
+                ]
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=20_000,
+        freeze_filter=pi0.Pi0Config(
+            paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
+        ).get_freeze_filter(),
+        # Turn off EMA for LoRA finetuning.
+        ema_decay=None,
     ),
     #
     # Fine-tuning DROID configs.

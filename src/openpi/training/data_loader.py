@@ -136,12 +136,48 @@ def create_torch_dataset(
     if repo_id == "fake":
         return FakeDataset(model_config, num_samples=1024)
 
+    ### Change into MultiLeRobotDataset
+
     dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
+    # Set tolerance to just under one frame to allow nearest-frame selection from video backends
+    # without tripping strict equality/rounding differences.
+    # tolerance_s = 0.05
     dataset = lerobot_dataset.LeRobotDataset(
         data_config.repo_id,
         delta_timestamps={
             key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
         },
+        # tolerance_s=tolerance_s,
+        # video_backend="pyav",
+    )
+
+    if data_config.prompt_from_task:
+        dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset_meta.tasks)])
+
+    return dataset
+
+def create_multirobot_torch_dataset(
+    data_config: _config.DataConfig, action_horizon: int, model_config: _model.BaseModelConfig
+) -> Dataset:
+    """Create a dataset for training."""
+    repo_id = data_config.repo_id
+    if repo_id is None:
+        raise ValueError("Repo ID is not set. Cannot create dataset.")
+    if repo_id == "fake":
+        return FakeDataset(model_config, num_samples=1024)
+
+    ### Change into MultiLeRobotDataset
+    dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
+    # Set tolerance to just under one frame to allow nearest-frame selection from video backends
+    # without tripping strict equality/rounding differences.
+    # tolerance_s = 0.05
+    dataset = lerobot_dataset.MultiLeRobotDataset(
+        repo_ids = data_config.repo_ids,
+        delta_timestamps={
+            key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
+        },
+        # tolerance_s=tolerance_s,
+        # video_backend="pyav",
     )
 
     if data_config.prompt_from_task:
