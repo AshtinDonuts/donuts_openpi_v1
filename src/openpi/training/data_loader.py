@@ -160,28 +160,35 @@ def create_multirobot_torch_dataset(
     data_config: _config.DataConfig, action_horizon: int, model_config: _model.BaseModelConfig
 ) -> Dataset:
     """Create a dataset for training."""
-    repo_id = data_config.repo_id
-    if repo_id is None:
-        raise ValueError("Repo ID is not set. Cannot create dataset.")
-    if repo_id == "fake":
-        return FakeDataset(model_config, num_samples=1024)
-
-    ### Change into MultiLeRobotDataset
-    dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
+    ## set the multitask info jsonl file
+    # dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
+    
     # Set tolerance to just under one frame to allow nearest-frame selection from video backends
     # without tripping strict equality/rounding differences.
     # tolerance_s = 0.05
+
+    ## Use MultiLeRobotDs  ###
+    fps = 30.0
     dataset = lerobot_dataset.MultiLeRobotDataset(
         repo_ids = data_config.repo_ids,
         delta_timestamps={
-            key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
+            key: [t / fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
         },
-        # tolerance_s=tolerance_s,
-        # video_backend="pyav",
+        # delta_timestamps={
+        #     key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
+        # },
     )
 
-    if data_config.prompt_from_task:
-        dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset_meta.tasks)])
+    ##
+    def easy_load_task_meta():
+        from lerobot.common.datasets.utils import load_jsonlines
+        tasks = load_jsonlines('/home/khw/.cache/huggingface/lerobot/AshtinDonuts/multitask_dataset/meta/tasks.jsonl')
+        tasks = {item["task_index"]: item["task"] for item in sorted(tasks, key=lambda x: x["task_index"])}
+        return tasks
+    dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(easy_load_task_meta())])
+    
+    # if data_config.prompt_from_task:
+    #     dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset_meta.tasks)])
 
     return dataset
 
@@ -262,6 +269,7 @@ def create_data_loader(
     shuffle: bool = False,
     num_batches: int | None = None,
     skip_norm_stats: bool = False,
+    multitask : bool = False,
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
     """Create a data loader for training."""
     data_config = config.data.create(config.assets_dirs, config.model)
@@ -276,6 +284,7 @@ def create_data_loader(
             num_batches=num_batches,
             skip_norm_stats=skip_norm_stats,
         )
+
     return create_torch_data_loader(
         data_config,
         model_config=config.model,
@@ -287,7 +296,9 @@ def create_data_loader(
         num_workers=config.num_workers,
         seed=config.seed,
         skip_norm_stats=skip_norm_stats,
+        multitask = multitask,
     )
+
 
 
 def create_torch_data_loader(
@@ -302,6 +313,7 @@ def create_torch_data_loader(
     num_batches: int | None = None,
     num_workers: int = 0,
     seed: int = 0,
+    multitask = False,
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
     """Create a data loader for training.
 
@@ -320,7 +332,10 @@ def create_torch_data_loader(
             execute in the main process.
         seed: The seed to use for shuffling the data.
     """
-    dataset = create_torch_dataset(data_config, action_horizon, model_config)
+    if multitask:
+        dataset = create_multirobot_torch_dataset(data_config, action_horizon, model_config)
+    else:
+        dataset = create_torch_dataset(data_config, action_horizon, model_config)
     dataset = transform_dataset(dataset, data_config, skip_norm_stats=skip_norm_stats)
 
     data_loader = TorchDataLoader(

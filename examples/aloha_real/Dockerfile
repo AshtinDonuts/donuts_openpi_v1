@@ -9,6 +9,10 @@
 FROM ros:noetic-robot@sha256:7cf0b9f6546abeba308ea42cb7ad3453f3e520e1af57cdf179fe915c939674bc
 SHELL ["/bin/bash", "-c"]
 
+# Fix /tmp permissions issue
+RUN chmod 1777 /tmp
+
+
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \

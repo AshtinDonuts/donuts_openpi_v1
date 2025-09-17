@@ -62,12 +62,15 @@ class AssetsConfig:
 
 @dataclasses.dataclass(frozen=True)
 class DataConfig:
+
     # LeRobot repo id. If None, fake data will be created.
     repo_id: str | None = None
     # Directory within the assets directory containing the data assets.
     asset_id: str | None = None
     # Contains precomputed normalization stats. If None, normalization will not be performed.
     norm_stats: dict[str, _transforms.NormStats] | None = None
+    ##
+    repo_ids: list[str] | None = None
 
     # Used to adopt the inputs from a dataset specific format to a common format
     # which is expected by the data transforms.
@@ -94,8 +97,9 @@ class DataConfig:
     # Action space for DROID dataset.
     action_space: droid_rlds_dataset.DroidActionSpace | None = None
     # Path to the data filter file for DROID dataset
-    filter_dict_path: str | None = None
-
+    filter_dict_path: str | None = None\
+    ##
+    repo_ids: list[str] = dataclasses.field(default_factory=lambda: ['AshtinDonuts/bowls','AshtinDonuts/clip','AshtinDonuts/coffee','AshtinDonuts/drawer','AshtinDonuts/egg'])
 
 class GroupFactory(Protocol):
     def __call__(self, model_config: _model.BaseModelConfig) -> _transforms.Group:
@@ -265,9 +269,10 @@ class LeRobotAlohaDataConfig(DataConfigFactory):
 
 @dataclasses.dataclass(frozen=True)
 class LeRobotMultiAlohaDataConfig(LeRobotAlohaDataConfig):
-    repo_id : str = None
-    repo_ids : list[str] = tyro.MISSING
-
+    repo_id : str = "placeholder" ##  openpi's factory method is very over-engineered and terrible for modifying anything, so we bypass the checks by using repo_id, then adding repo_ids later.
+    repo_ids = ['AshtinDonuts/egg', 'AshtinDonuts/clip', \
+                'AshtinDonuts/coffee', 'AshtinDonuts/drawer', 'AshtinDonuts/bowls'],
+    ## NOTE : I dont think adding an additional attribute here actually does anything. Likely instead registered in DataConfig.
 
 @dataclasses.dataclass(frozen=True)
 class LeRobotLiberoDataConfig(DataConfigFactory):
@@ -459,7 +464,7 @@ class TrainConfig:
     resume: bool = False
 
     # If true, will enable wandb logging.
-    wandb_enabled: bool = True
+    wandb_enabled: bool = False
 
     # Used to pass metadata to the policy server.
     policy_metadata: dict[str, Any] | None = None
@@ -685,13 +690,12 @@ _CONFIGS = [
         num_train_steps=20_000,
     ),
     ##
-    ## KING : SEP 10 MULTITASK TRAINING
+    ## KING : SEP 10 MULTITASK
     ##
     TrainConfig(
         name="pi0_aloha_multitask",
         model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
         data=LeRobotMultiAlohaDataConfig(
-            repo_ids ='AshtinDonuts/multitaskdataset',
             base_config=DataConfig(prompt_from_task=True),
             repack_transforms=_transforms.Group(
                 inputs=[
@@ -704,6 +708,7 @@ _CONFIGS = [
                             },
                             "state": "observation.state",
                             "actions": "action",
+                            "prompt" : "prompt"
                         }
                     )
                 ]
@@ -715,6 +720,7 @@ _CONFIGS = [
             paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
         ).get_freeze_filter(),
         ema_decay=None,    # Turn off EMA for LoRA finetuning.
+        num_workers=0,   # DEbug
 
     ), 
     ##

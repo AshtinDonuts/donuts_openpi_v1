@@ -67,6 +67,7 @@ class CompositeTransform(DataTransformFn):
 
     def __call__(self, data: DataDict) -> DataDict:
         for transform in self.transforms:
+
             data = transform(data)
         return data
 

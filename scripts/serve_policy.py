@@ -57,10 +57,10 @@ class Args:
 
 # Default checkpoints that should be used for each environment.
 DEFAULT_CHECKPOINT: dict[EnvMode, Checkpoint] = {
-    EnvMode.ALOHA: Checkpoint(
-        config="pi0_aloha",
-        dir="gs://openpi-assets/checkpoints/pi0_base",
-    ),
+    # EnvMode.ALOHA: Checkpoint(
+    #     config="pi0_aloha",
+    #     dir="gs://openpi-assets/checkpoints/pi0_base",
+    # ),
     EnvMode.ALOHA_SIM: Checkpoint(
         config="pi0_aloha_sim",
         dir="gs://openpi-assets/checkpoints/pi0_aloha_sim",
@@ -72,6 +72,10 @@ DEFAULT_CHECKPOINT: dict[EnvMode, Checkpoint] = {
     EnvMode.LIBERO: Checkpoint(
         config="pi0_fast_libero",
         dir="gs://openpi-assets/checkpoints/pi0_fast_libero",
+    ),
+    EnvMode.ALOHA: Checkpoint(
+        config="pi0_aloha",
+        dir="gs://openpi-assets/checkpoints/pi0_aloha_towel",
     ),
 }
 

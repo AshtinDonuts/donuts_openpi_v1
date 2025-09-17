@@ -215,12 +215,13 @@ def main(config: _config.TrainConfig):
         overwrite=config.overwrite,
         resume=config.resume,
     )
-    init_wandb(config, resuming=resuming, enabled=config.wandb_enabled)
+    init_wandb(config, resuming=resuming, enabled=config.wandb_enabled)  # NOTE: uncomment to use wandb
 
     data_loader = _data_loader.create_data_loader(
         config,
         sharding=data_sharding,
         shuffle=True,
+        multitask = True,  ##
     )
     data_iter = iter(data_loader)
     batch = next(data_iter)

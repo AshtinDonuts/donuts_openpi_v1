@@ -36,7 +36,7 @@ class AlohaInputs(transforms.DataTransformFn):
 
     # If true, this will convert the joint and gripper values from the standard Aloha space to
     # the space used by the pi internal runtime which was used to train the base model.
-    adapt_to_pi: bool = True
+    adapt_to_pi: bool = False  #   WE DO NOT USE STANDARD ALOHA SETUP.
 
     # The expected cameras names. All input cameras must be in this set. Missing cameras will be
     # replaced with black images and the corresponding `image_mask` will be set to False.
@@ -84,7 +84,7 @@ class AlohaInputs(transforms.DataTransformFn):
         # Actions are only available during training.
         if "actions" in data:
             actions = np.asarray(data["actions"])
-            actions = _encode_actions_inv(actions, adapt_to_pi=self.adapt_to_pi)
+            # actions = _encode_actions_inv(actions, adapt_to_pi=self.adapt_to_pi) ## KING : WE DO NOT USE STANDARD ALOHA SETUP.
             inputs["actions"] = transforms.pad_to_dim(actions, self.action_dim)
 
         if "prompt" in data:
@@ -106,7 +106,8 @@ class AlohaOutputs(transforms.DataTransformFn):
         actions = np.asarray(data["actions"][:, :14])
         return {"actions": _encode_actions(actions, adapt_to_pi=self.adapt_to_pi)}
 
-
+# TODO : MODIFY THE ANGLES SINCE WE CHANGED THE ALOHA SETUP TO NOW FACE EACH OTHER.
+# THIS CODE IS A CLUE, WE NEED TO MODIFY THE ANGLES AS LINEAR COMBINATION AND NOT JUST FLIP.
 def _joint_flip_mask() -> np.ndarray:
     """Used to convert between aloha and pi joint angles."""
     return np.array([1, -1, -1, 1, 1, 1, 1, 1, -1, -1, 1, 1, 1, 1])
@@ -166,7 +167,7 @@ def _decode_aloha(data: dict, *, adapt_to_pi: bool = False) -> dict:
     # state is [left_arm_joint_angles, right_arm_joint_angles, left_arm_gripper, right_arm_gripper]
     # dim sizes: [6, 1, 6, 1]
     state = np.asarray(data["state"])
-    state = _decode_state(state, adapt_to_pi=adapt_to_pi)
+    # state = _decode_state(state, adapt_to_pi=adapt_to_pi)  # KING : WE DO NOT USE STANDARD ALOHA SETUP.
 
     def convert_image(img):
         img = np.asarray(img)
@@ -185,6 +186,7 @@ def _decode_aloha(data: dict, *, adapt_to_pi: bool = False) -> dict:
 
 
 def _decode_state(state: np.ndarray, *, adapt_to_pi: bool = False) -> np.ndarray:
+    print(f"adapt_to_pi: {adapt_to_pi}")
     if adapt_to_pi:
         # Flip the joints.
         state = _joint_flip_mask() * state

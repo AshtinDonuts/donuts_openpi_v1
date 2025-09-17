@@ -4,7 +4,6 @@ This script computes norm stats for a superset of smaller datasets.
 It utilizes the MultiLeRobotDataset class extensively for this purpose.
 
 """
-
 import numpy as np
 import tqdm
 import tyro
@@ -29,8 +28,8 @@ def create_torch_dataloader(
     num_workers: int,
     max_frames: int | None = None,
 ) -> tuple[_data_loader.Dataset, int]:
-    if data_config.repo_id is None:
-        raise ValueError("Data config must have a repo_id")
+    """ Currently supports only LeRobotMultiAlohaDataConfig"""
+
     dataset = _data_loader.create_multirobot_torch_dataset(data_config, action_horizon, model_config)
     dataset = _data_loader.TransformedDataset(
         dataset,
@@ -109,6 +108,7 @@ def main(config_name: str, max_frames: int | None = None):
 
     norm_stats = {key: stats.get_statistics() for key, stats in stats.items()}
 
+    ##  this works because assets_dirs is a property, distinct from assets_dir (no 's')
     output_path = config.assets_dirs / data_config.repo_id
     print(f"Writing stats to: {output_path}")
     normalize.save(output_path, norm_stats)
