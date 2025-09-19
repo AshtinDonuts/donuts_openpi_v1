@@ -49,7 +49,7 @@ class Args:
     # Port to serve the policy on.
     port: int = 8000
     # Record the policy's behavior for debugging.
-    record: bool = False
+    record: bool = False  ##  True
 
     # Specifies how to load the policy. If not provided, the default policy for the environment will be used.
     policy: Checkpoint | Default = dataclasses.field(default_factory=Default)
@@ -76,7 +76,7 @@ DEFAULT_CHECKPOINT: dict[EnvMode, Checkpoint] = {
     EnvMode.ALOHA: Checkpoint(
         config="pi0_aloha",
         # dir="gs://openpi-assets/checkpoints/pi0_aloha_towel",
-        dir="/home/khw/25000/",
+        dir="/app/checkpoints/pi0_aloha_multitask/25000",   # tip : to understand file/directory structure, see error log script run location
     ),
 }
 
