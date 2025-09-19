@@ -10,12 +10,11 @@ from openpi import transforms
 def make_aloha_example() -> dict:
     """Creates a random input example for the Aloha policy."""
     return {
-        "state": np.ones((14,)),
+        "state": np.ones((7,)),
         "images": {
             "cam_high": np.random.randint(256, size=(3, 224, 224), dtype=np.uint8),
             "cam_low": np.random.randint(256, size=(3, 224, 224), dtype=np.uint8),
             "cam_left_wrist": np.random.randint(256, size=(3, 224, 224), dtype=np.uint8),
-            "cam_right_wrist": np.random.randint(256, size=(3, 224, 224), dtype=np.uint8),
         },
         "prompt": "do something",
     }
@@ -27,8 +26,8 @@ class AlohaInputs(transforms.DataTransformFn):
 
     Expected inputs:
     - images: dict[name, img] where img is [channel, height, width]. name must be in EXPECTED_CAMERAS.
-    - state: [14]
-    - actions: [action_horizon, 14]
+    - state: [7]
+    - actions: [action_horizon, 7]
     """
 
     # The action dimension of the model. Will be used to pad state and actions.
@@ -40,7 +39,7 @@ class AlohaInputs(transforms.DataTransformFn):
 
     # The expected cameras names. All input cameras must be in this set. Missing cameras will be
     # replaced with black images and the corresponding `image_mask` will be set to False.
-    EXPECTED_CAMERAS: ClassVar[tuple[str, ...]] = ("cam_high", "cam_low", "cam_left_wrist", "cam_right_wrist")
+    EXPECTED_CAMERAS: ClassVar[tuple[str, ...]] = ("cam_high", "cam_low", "cam_left_wrist")
 
     def __call__(self, data: dict) -> dict:
         data = _decode_aloha(data, adapt_to_pi=self.adapt_to_pi)
@@ -52,7 +51,7 @@ class AlohaInputs(transforms.DataTransformFn):
         if set(in_images) - set(self.EXPECTED_CAMERAS):
             raise ValueError(f"Expected images to contain {self.EXPECTED_CAMERAS}, got {tuple(in_images)}")
 
-        # Assume that base image always exists.
+        # Use the high camera image as the base.
         base_image = in_images["cam_high"]
 
         images = {
@@ -62,10 +61,10 @@ class AlohaInputs(transforms.DataTransformFn):
             "base_0_rgb": np.True_,
         }
 
-        # Add the extra images.
+        # Optionally add the low camera and left wrist as extra images.
         extra_image_names = {
+            "base_1_rgb": "cam_low",
             "left_wrist_0_rgb": "cam_left_wrist",
-            "right_wrist_0_rgb": "cam_right_wrist",
         }
         for dest, source in extra_image_names.items():
             if source in in_images:
@@ -84,7 +83,7 @@ class AlohaInputs(transforms.DataTransformFn):
         # Actions are only available during training.
         if "actions" in data:
             actions = np.asarray(data["actions"])
-            # actions = _encode_actions_inv(actions, adapt_to_pi=self.adapt_to_pi) ## KING : WE DO NOT USE STANDARD ALOHA SETUP.
+            actions = _encode_actions_inv(actions, adapt_to_pi=self.adapt_to_pi)
             inputs["actions"] = transforms.pad_to_dim(actions, self.action_dim)
 
         if "prompt" in data:
@@ -102,15 +101,13 @@ class AlohaOutputs(transforms.DataTransformFn):
     adapt_to_pi: bool = True
 
     def __call__(self, data: dict) -> dict:
-        # Only return the first 14 dims.
-        actions = np.asarray(data["actions"][:, :14])
+        # Only return the first 7 dims for single-arm control.
+        actions = np.asarray(data["actions"])[:, :7]
         return {"actions": _encode_actions(actions, adapt_to_pi=self.adapt_to_pi)}
 
-# TODO : MODIFY THE ANGLES SINCE WE CHANGED THE ALOHA SETUP TO NOW FACE EACH OTHER.
-# THIS CODE IS A CLUE, WE NEED TO MODIFY THE ANGLES AS LINEAR COMBINATION AND NOT JUST FLIP.
 def _joint_flip_mask() -> np.ndarray:
-    """Used to convert between aloha and pi joint angles."""
-    return np.array([1, -1, -1, 1, 1, 1, 1, 1, -1, -1, 1, 1, 1, 1])
+    """Used to convert between aloha and pi joint angles for a single arm (7 dims)."""
+    return np.array([1, -1, -1, 1, 1, 1, 1])
 
 
 def _normalize(x, min_val, max_val):
@@ -167,7 +164,7 @@ def _decode_aloha(data: dict, *, adapt_to_pi: bool = False) -> dict:
     # state is [left_arm_joint_angles, right_arm_joint_angles, left_arm_gripper, right_arm_gripper]
     # dim sizes: [6, 1, 6, 1]
     state = np.asarray(data["state"])
-    # state = _decode_state(state, adapt_to_pi=adapt_to_pi)  # KING : WE DO NOT USE STANDARD ALOHA SETUP.
+    state = _decode_state(state, adapt_to_pi=adapt_to_pi)  # KING : WE DO NOT USE STANDARD ALOHA SETUP.
 
     def convert_image(img):
         img = np.asarray(img)
@@ -188,23 +185,22 @@ def _decode_aloha(data: dict, *, adapt_to_pi: bool = False) -> dict:
 def _decode_state(state: np.ndarray, *, adapt_to_pi: bool = False) -> np.ndarray:
     print(f"adapt_to_pi: {adapt_to_pi}")
     if adapt_to_pi:
-        # Flip the joints.
-        state = _joint_flip_mask() * state
-        # Reverse the gripper transformation that is being applied by the Aloha runtime.
-        state[[6, 13]] = _gripper_to_angular(state[[6, 13]])
+        # Flip only the single arm joints and convert the gripper (index 6).
+        state[:7] = _joint_flip_mask() * state[:7]
+        state[6] = _gripper_to_angular(state[6])
     return state
 
 
 def _encode_actions(actions: np.ndarray, *, adapt_to_pi: bool = False) -> np.ndarray:
     if adapt_to_pi:
-        # Flip the joints.
-        actions = _joint_flip_mask() * actions
-        actions[:, [6, 13]] = _gripper_from_angular(actions[:, [6, 13]])
+        # Flip only the single arm joints and convert the gripper (index 6).
+        actions[:, :7] = _joint_flip_mask() * actions[:, :7]
+        actions[:, 6] = _gripper_from_angular(actions[:, 6])
     return actions
 
 
 def _encode_actions_inv(actions: np.ndarray, *, adapt_to_pi: bool = False) -> np.ndarray:
     if adapt_to_pi:
-        actions = _joint_flip_mask() * actions
-        actions[:, [6, 13]] = _gripper_from_angular_inv(actions[:, [6, 13]])
+        actions[:, :7] = _joint_flip_mask() * actions[:, :7]
+        actions[:, 6] = _gripper_from_angular_inv(actions[:, 6])
     return actions
