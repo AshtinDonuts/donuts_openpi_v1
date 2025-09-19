@@ -690,11 +690,11 @@ _CONFIGS = [
         num_train_steps=20_000,
     ),
     ##
-    ## KING : SEP 10 MULTITASK
+    ## KING : SEP 17 - adjusted action horizon to match aimbot
     ##
     TrainConfig(
         name="pi0_aloha_multitask",
-        model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
+        model=pi0.Pi0Config(action_horizon=50, paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
         data=LeRobotMultiAlohaDataConfig(
             base_config=DataConfig(prompt_from_task=True),
             repack_transforms=_transforms.Group(
@@ -715,12 +715,12 @@ _CONFIGS = [
             ),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
-        num_train_steps=3000,  #   steps for prelim testing
+        num_train_steps=50_000,  #   steps for prelim testing
         freeze_filter=pi0.Pi0Config(
             paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
         ).get_freeze_filter(),
         ema_decay=None,    # Turn off EMA for LoRA finetuning.
-        num_workers=0,   # DEbug
+        num_workers=2,   # DEbug
 
     ), 
     ##

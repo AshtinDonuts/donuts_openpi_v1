@@ -51,7 +51,6 @@ class AlohaInputs(transforms.DataTransformFn):
         in_images = data["images"]
         if set(in_images) - set(self.EXPECTED_CAMERAS):
             raise ValueError(f"Expected images to contain {self.EXPECTED_CAMERAS}, got {tuple(in_images)}")
-
         # Assume that base image always exists.
         base_image = in_images["cam_high"]
 
@@ -62,11 +61,11 @@ class AlohaInputs(transforms.DataTransformFn):
             "base_0_rgb": np.True_,
         }
 
-        # Add the extra images.
+        # Add the extra images. Keep model-expected keys, but source from cam_low and left wrist.
         extra_image_names = {
             "left_wrist_0_rgb": "cam_left_wrist",
-            "right_wrist_0_rgb": "cam_right_wrist",
-        }
+            "right_wrist_0_rgb": "cam_low",
+        }    
         for dest, source in extra_image_names.items():
             if source in in_images:
                 images[dest] = in_images[source]

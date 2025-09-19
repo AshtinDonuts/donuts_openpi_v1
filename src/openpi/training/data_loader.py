@@ -179,10 +179,10 @@ def create_multirobot_torch_dataset(
         # },
     )
 
-    ##
+    ## TODO: change it back
     def easy_load_task_meta():
         from lerobot.common.datasets.utils import load_jsonlines
-        tasks = load_jsonlines('/home/khw/.cache/huggingface/lerobot/AshtinDonuts/multitask_dataset/meta/tasks.jsonl')
+        tasks = load_jsonlines('/khw/Documents/my_openpi/data/AshtinDonuts/multitask_dataset/meta/tasks.jsonl')
         tasks = {item["task_index"]: item["task"] for item in sorted(tasks, key=lambda x: x["task_index"])}
         return tasks
     dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(easy_load_task_meta())])
